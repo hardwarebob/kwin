@@ -15,6 +15,7 @@
 #endif
 #include "atoms.h"
 #include "client_machine.h"
+#include "core/backendoutput.h"
 #include "core/output.h"
 #include "cursor.h"
 #include "decorations/decoratedwindow.h"
@@ -1227,13 +1228,22 @@ void X11Window::updateVisibility()
         return;
     }
     setSkipTaskbar(originalSkipTaskbar()); // Reset from 'hidden'
-    if (isMinimized() || workspace()->dpmsState() != Workspace::DpmsState::On) {
+    const auto outputs = workspace()->outputs();
+    const bool onAwakeOutput = std::ranges::any_of(outputs, [this](LogicalOutput *out) {
+        return isOnOutput(out) && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+    });
+    if (isMinimized() || (workspace()->dpmsState() != Workspace::DpmsState::On && !onAwakeOutput)) {
         info->setState(NET::Hidden, NET::Hidden);
         internalHide();
         return;
     }
     info->setState(NET::States(), NET::Hidden);
-    if (!isOnCurrentDesktop() || waylandServer()->isScreenLocked()) {
+    const bool onUnlockedAwakeOutput = std::ranges::any_of(outputs, [this](LogicalOutput *out) {
+        return isOnOutput(out)
+            && out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+            && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+    });
+    if (!isOnCurrentDesktop() || (waylandServer()->isScreenLocked() && !onUnlockedAwakeOutput)) {
         internalKeep();
         return;
     }

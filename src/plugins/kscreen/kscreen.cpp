@@ -8,6 +8,7 @@
 */
 // own
 #include "kscreen.h"
+#include "core/backendoutput.h"
 #include "core/output.h"
 #include "effect/effecthandler.h"
 #include "workspace.h"
@@ -46,6 +47,9 @@ void KscreenEffect::dpmsChanged(std::chrono::milliseconds animationTime)
     case Workspace::DpmsState::AboutToTurnOff: {
         const auto screens = effects->screens();
         for (LogicalOutput *screen : screens) {
+            if (screen->backendOutput()->dpmsPolicy() == BackendOutput::DpmsPolicy::AlwaysOn) {
+                continue;
+            }
             auto &state = m_states[screen];
             state.m_timeLine.setDuration(animationTime);
             setState(state, StateFadingOut);
