@@ -160,6 +160,15 @@ void WindowItem::deelevate()
     updateStackingOrder();
 }
 
+static bool windowOnLockedOutput(const Window *window)
+{
+    const auto outputs = workspace()->outputs();
+    return std::ranges::any_of(outputs, [window](LogicalOutput *output) {
+        return window->isOnOutput(output)
+            && output->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::FollowSession;
+    });
+}
+
 static bool windowOnUnlockedAwakeOutput(const Window *window)
 {
     const auto outputs = workspace()->outputs();
@@ -185,7 +194,10 @@ bool WindowItem::computeVisibility() const
         return false;
     }
     if (waylandServer()->isScreenLocked()) {
-        if (m_window->isLockScreen() || m_window->isInputMethod() || m_window->isLockScreenOverlay()) {
+        if (m_window->isLockScreen() || m_window->isLockScreenOverlay()) {
+            return windowOnLockedOutput(m_window);
+        }
+        if (m_window->isInputMethod()) {
             return true;
         }
         return windowOnUnlockedAwakeOutput(m_window);
