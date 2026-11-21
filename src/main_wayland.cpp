@@ -411,6 +411,8 @@ int main(int argc, char *argv[])
                                      i18n("Exits this instance so it can be restarted by kwin_wayland_wrapper."));
 
     QCommandLineOption drmOption(QStringLiteral("drm"), i18n("Render through drm node."));
+    QCommandLineOption drmStandaloneOption(QStringLiteral("drm-standalone"), i18n("Run KMS backend with a standalone Noop session (do not claim seat0 VT)."));
+    QCommandLineOption noLibinputOption(QStringLiteral("no-libinput"), i18n("Disable physical libinput devices on DRM backend."));
     QCommandLineOption locale1Option(QStringLiteral("locale1"), i18n("Extract locale information from locale1 rather than the user's configuration"));
 
     QCommandLineParser parser;
@@ -436,6 +438,8 @@ int main(int argc, char *argv[])
     parser.addOption(scaleOption);
     parser.addOption(outputCountOption);
     parser.addOption(drmOption);
+    parser.addOption(drmStandaloneOption);
+    parser.addOption(noLibinputOption);
     parser.addOption(locale1Option);
     parser.addOption(fullscreenOption);
 
@@ -565,7 +569,14 @@ int main(int argc, char *argv[])
 
     switch (backendType) {
     case BackendType::Kms:
-        a.setSession(KWin::Session::create());
+        if (parser.isSet(drmStandaloneOption) || qEnvironmentVariableIsSet("KWIN_DRM_STANDALONE")) {
+            a.setSession(KWin::Session::create(KWin::Session::Type::Noop));
+        } else {
+            a.setSession(KWin::Session::create());
+        }
+        if (parser.isSet(noLibinputOption)) {
+            qputenv("KWIN_NO_LIBINPUT", "1");
+        }
         if (!a.session()) {
             std::cerr << "FATAL ERROR: could not acquire a session" << std::endl;
             return 1;

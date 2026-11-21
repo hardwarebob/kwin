@@ -5,6 +5,8 @@
 */
 
 #include "scene/windowitem.h"
+#include "core/backendoutput.h"
+#include "core/output.h"
 #include "effect/effecthandler.h"
 #include "internalwindow.h"
 #include "scene/decorationitem.h"
@@ -158,13 +160,35 @@ void WindowItem::deelevate()
     updateStackingOrder();
 }
 
+static bool windowOnUnlockedAwakeOutput(const Window *window)
+{
+    const auto outputs = workspace()->outputs();
+    return std::ranges::any_of(outputs, [window](LogicalOutput *output) {
+        return window->isOnOutput(output)
+            && output->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+            && output->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+    });
+}
+
+static bool windowOnAwakeOutput(const Window *window)
+{
+    const auto outputs = workspace()->outputs();
+    return std::ranges::any_of(outputs, [window](LogicalOutput *output) {
+        return window->isOnOutput(output)
+            && output->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+    });
+}
+
 bool WindowItem::computeVisibility() const
 {
     if (!m_window->readyForPainting()) {
         return false;
     }
     if (waylandServer()->isScreenLocked()) {
-        return m_window->isLockScreen() || m_window->isInputMethod() || m_window->isLockScreenOverlay();
+        if (m_window->isLockScreen() || m_window->isInputMethod() || m_window->isLockScreenOverlay()) {
+            return true;
+        }
+        return windowOnUnlockedAwakeOutput(m_window);
     }
     // The window must remain visible during interactive/move resize, even if it's dragged to a desktop where it can't be due to window rules etc.
     if (m_window->isInteractiveResize() || m_window->isInteractiveMove()) {
@@ -199,7 +223,7 @@ void WindowItem::updateVisibility()
     setVisible(visible);
 
     if (m_window->readyForPainting()) {
-        const bool dpmsOff = workspace()->dpmsState() != Workspace::DpmsState::On;
+        const bool dpmsOff = workspace()->dpmsState() != Workspace::DpmsState::On && !windowOnAwakeOutput(m_window);
         m_window->setSuspended((!visible || dpmsOff) && !m_window->isOffscreenRendering());
     }
 }

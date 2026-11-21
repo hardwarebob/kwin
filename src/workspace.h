@@ -449,6 +449,7 @@ public:
     };
     void requestDpmsState(DpmsState state);
     DpmsState dpmsState() const;
+    bool hasUnlockedAwakeOutput() const;
 
 public Q_SLOTS:
     void performWindowOperation(KWin::Window *window, Options::WindowOperation op);

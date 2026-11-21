@@ -65,6 +65,18 @@ public:
     };
     Q_ENUM(DpmsMode)
 
+    enum class LockPolicy {
+        FollowSession,
+        Unlocked,
+    };
+    Q_ENUM(LockPolicy)
+
+    enum class DpmsPolicy {
+        FollowSession,
+        AlwaysOn,
+    };
+    Q_ENUM(DpmsPolicy)
+
     enum class Capability : uint {
         Dpms = 1,
         Overscan = 1 << 1,
@@ -230,6 +242,10 @@ public:
     std::shared_ptr<OutputMode> currentMode() const;
     OutputModeline desiredMode() const;
     DpmsMode dpmsMode() const;
+    LockPolicy lockPolicy() const;
+    void setLockPolicy(LockPolicy policy);
+    DpmsPolicy dpmsPolicy() const;
+    void setDpmsPolicy(DpmsPolicy policy);
 
     uint32_t overscan() const;
 
@@ -406,6 +422,8 @@ Q_SIGNALS:
     void modesChanged();
     void transformChanged();
     void dpmsModeChanged();
+    void lockPolicyChanged();
+    void dpmsPolicyChanged();
     void capabilitiesChanged();
     void overscanChanged();
     void vrrPolicyChanged();
@@ -532,6 +550,8 @@ protected:
     int m_refCount = 1;
     std::unique_ptr<RenderLoop> m_renderLoop;
     DrmDevice *m_scanoutDevice = nullptr;
+    LockPolicy m_lockPolicy = LockPolicy::FollowSession;
+    DpmsPolicy m_dpmsPolicy = DpmsPolicy::FollowSession;
 };
 
 }

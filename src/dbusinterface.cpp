@@ -11,6 +11,7 @@
 #include "dbusinterface.h"
 #include "compositingadaptor.h"
 #include "pluginsadaptor.h"
+#include "remotesessions.h"
 #include "virtualdesktopmanageradaptor.h"
 
 // kwin
@@ -41,6 +42,7 @@ DBusInterface::DBusInterface(QObject *parent)
     , m_serviceName(QStringLiteral("org.kde.KWin"))
 {
     (void)new KWinAdaptor(this);
+    (void)new RemoteSessionManager(this);
 
     QDBusConnection dbus = QDBusConnection::sessionBus();
     dbus.registerObject(QStringLiteral("/KWin"), this);

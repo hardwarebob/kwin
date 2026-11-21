@@ -83,6 +83,7 @@ target_sources(kwin PRIVATE
     cursor.cpp
     cursorsource.cpp
     dbusinterface.cpp
+    remotesessions.cpp
     debug_console.cpp
     decorations/decoratedwindow.cpp
     decorations/decorationbridge.cpp

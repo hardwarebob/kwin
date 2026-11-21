@@ -124,6 +124,15 @@ public:
     virtual QString outputName() const;
     virtual void setOutputName(const QString &outputName);
 
+    enum class InputScope {
+        Session,
+        UnlockedOutputsOnly,
+    };
+    Q_ENUM(InputScope)
+
+    InputScope inputScope() const;
+    void setInputScope(InputScope scope);
+
     virtual int tabletPadButtonCount() const;
     virtual int tabletPadDialCount() const;
     virtual int tabletPadRingCount() const;
@@ -167,6 +176,10 @@ Q_SIGNALS:
     void tabletPadStripEvent(int number, qreal position, bool isFinger, quint32 group, quint32 mode, std::chrono::microseconds time, InputDevice *device);
     void tabletPadRingEvent(int number, qreal position, bool isFinger, quint32 group, quint32 mode, std::chrono::microseconds time, InputDevice *device);
     void tabletPadDialEvent(int number, double delta, quint32 group, std::chrono::microseconds time, InputDevice *device);
+    void inputScopeChanged();
+
+private:
+    InputScope m_inputScope = InputScope::Session;
 };
 
 } // namespace KWin

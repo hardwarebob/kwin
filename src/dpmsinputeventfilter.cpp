@@ -8,6 +8,7 @@
 */
 #include "dpmsinputeventfilter.h"
 #include "core/backendoutput.h"
+#include "core/inputdevice.h"
 #include "core/outputbackend.h"
 #include "input_event.h"
 #include "main.h"
@@ -22,6 +23,12 @@
 
 namespace KWin
 {
+
+static bool isUnlockedOnlyDevice(InputDevice *device)
+{
+    return device && device->inputScope() == InputDevice::InputScope::UnlockedOutputsOnly
+        && workspace()->hasUnlockedAwakeOutput();
+}
 
 DpmsInputEventFilter::DpmsInputEventFilter()
     : InputEventFilter(InputFilterOrder::Dpms)
@@ -56,6 +63,9 @@ void DpmsInputEventFilter::updateProximitySensor()
 
 bool DpmsInputEventFilter::pointerMotion(PointerMotionEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     if (!event->warp) {
         // The intention is to wake the screen on user interactions
         // warp events aren't user interactions, so ignore them.
@@ -66,18 +76,27 @@ bool DpmsInputEventFilter::pointerMotion(PointerMotionEvent *event)
 
 bool DpmsInputEventFilter::pointerButton(PointerButtonEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     notify();
     return true;
 }
 
 bool DpmsInputEventFilter::pointerAxis(PointerAxisEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     notify();
     return true;
 }
 
 bool DpmsInputEventFilter::keyboardKey(KeyboardKeyEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     if (isMediaKey(event->key)) {
         // don't wake up the screens for media or volume keys
         return false;

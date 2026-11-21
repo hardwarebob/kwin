@@ -72,6 +72,8 @@ public:
     std::optional<AutoBrightnessCurve> autoBrightnessCurve;
     std::optional<BackendOutput::BrightnessReason> brightnessReason;
     std::optional<uint32_t> abmLevel;
+    std::optional<BackendOutput::LockPolicy> lockPolicy;
+    std::optional<BackendOutput::DpmsPolicy> dpmsPolicy;
 };
 
 class KWIN_EXPORT OutputConfiguration

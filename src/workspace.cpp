@@ -561,15 +561,29 @@ std::expected<void, OutputError> Workspace::applyOutputConfiguration(OutputConfi
 
     m_outputConfigStore->applyMirroring(config, backendOutputs);
     for (BackendOutput *output : backendOutputs) {
-        if (m_dpms == DpmsState::Off || m_dpms == DpmsState::TurningOff) {
-            config.changeSet(output)->dpmsMode = BackendOutput::DpmsMode::Off;
+        auto changeSet = config.changeSet(output);
+        const auto effectiveDpmsPolicy = changeSet->dpmsPolicy.value_or(output->dpmsPolicy());
+        if (effectiveDpmsPolicy == BackendOutput::DpmsPolicy::AlwaysOn) {
+            changeSet->dpmsMode = BackendOutput::DpmsMode::On;
+        } else if (m_dpms == DpmsState::Off || m_dpms == DpmsState::TurningOff) {
+            changeSet->dpmsMode = BackendOutput::DpmsMode::Off;
         } else {
-            config.changeSet(output)->dpmsMode = BackendOutput::DpmsMode::On;
+            changeSet->dpmsMode = BackendOutput::DpmsMode::On;
         }
     }
     auto result = kwinApp()->outputBackend()->applyOutputChanges(config);
     if (!result) {
         return result;
+    }
+    for (BackendOutput *output : backendOutputs) {
+        if (const auto changeSet = config.constChangeSet(output)) {
+            if (changeSet->lockPolicy) {
+                output->setLockPolicy(*changeSet->lockPolicy);
+            }
+            if (changeSet->dpmsPolicy) {
+                output->setDpmsPolicy(*changeSet->dpmsPolicy);
+            }
+        }
     }
     updateOutputs();
     m_outputConfigStore->storeConfig(backendOutputs, m_lidSwitchTracker->isLidClosed());
@@ -636,7 +650,8 @@ void Workspace::maybeUpdateDpmsState()
     }
     const auto outputs = kwinApp()->outputBackend()->outputs();
     const bool allOff = std::ranges::all_of(outputs, [](BackendOutput *output) {
-        return output->dpmsMode() == BackendOutput::DpmsMode::Off;
+        return output->dpmsPolicy() == BackendOutput::DpmsPolicy::AlwaysOn
+            || output->dpmsMode() == BackendOutput::DpmsMode::Off;
     });
     if (!allOff) {
         return;
@@ -651,6 +666,16 @@ void Workspace::maybeUpdateDpmsState()
 Workspace::DpmsState Workspace::dpmsState() const
 {
     return m_dpms;
+}
+
+bool Workspace::hasUnlockedAwakeOutput() const
+{
+    const auto outputs = kwinApp()->outputBackend()->outputs();
+    return std::ranges::any_of(outputs, [](BackendOutput *output) {
+        return output->isEnabled()
+            && output->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+            && output->dpmsMode() == BackendOutput::DpmsMode::On;
+    });
 }
 
 void Workspace::updateXwaylandScale()

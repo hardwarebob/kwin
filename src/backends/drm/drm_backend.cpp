@@ -305,6 +305,9 @@ void DrmBackend::updateOutputs(DrmGpu *onlyUpdate)
 
 std::unique_ptr<InputBackend> DrmBackend::createInputBackend()
 {
+    if (qEnvironmentVariableIsSet("KWIN_NO_LIBINPUT")) {
+        return nullptr;
+    }
     return std::make_unique<LibinputBackend>(m_session);
 }
 

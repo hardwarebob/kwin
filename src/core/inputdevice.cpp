@@ -62,6 +62,19 @@ void InputDevice::setOutputName(const QString &outputName)
 {
 }
 
+InputDevice::InputScope InputDevice::inputScope() const
+{
+    return m_inputScope;
+}
+
+void InputDevice::setInputScope(InputScope scope)
+{
+    if (m_inputScope != scope) {
+        m_inputScope = scope;
+        Q_EMIT inputScopeChanged();
+    }
+}
+
 int InputDevice::tabletPadButtonCount() const
 {
     return 0;

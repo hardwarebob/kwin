@@ -297,9 +297,14 @@ public:
         : InputEventFilter(InputFilterOrder::LockScreen)
     {
     }
+    static bool allowThroughForUnlockedOutput(InputDevice *device)
+    {
+        return device && device->inputScope() == InputDevice::InputScope::UnlockedOutputsOnly
+            && workspace()->hasUnlockedAwakeOutput();
+    }
     bool pointerMotion(PointerMotionEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
             return false;
         }
 
@@ -322,7 +327,7 @@ public:
     }
     bool pointerButton(PointerButtonEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
             return false;
         }
 
@@ -357,7 +362,7 @@ public:
     }
     bool pointerAxis(PointerAxisEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
             return false;
         }
 
@@ -372,7 +377,7 @@ public:
     }
     bool keyboardKey(KeyboardKeyEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
             return false;
         }
 

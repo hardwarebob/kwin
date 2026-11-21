@@ -265,6 +265,12 @@ void BackendOutput::applyChanges(const OutputConfiguration &config)
     next.deviceOffset = props->deviceOffset.value_or(m_state.deviceOffset);
 
     setState(next);
+    if (props->lockPolicy) {
+        setLockPolicy(*props->lockPolicy);
+    }
+    if (props->dpmsPolicy) {
+        setDpmsPolicy(*props->dpmsPolicy);
+    }
 
     Q_EMIT changed();
 }
@@ -438,6 +444,32 @@ QSize BackendOutput::orientateSize(const QSize &size) const
 BackendOutput::DpmsMode BackendOutput::dpmsMode() const
 {
     return m_state.dpmsMode;
+}
+
+BackendOutput::LockPolicy BackendOutput::lockPolicy() const
+{
+    return m_lockPolicy;
+}
+
+void BackendOutput::setLockPolicy(LockPolicy policy)
+{
+    if (m_lockPolicy != policy) {
+        m_lockPolicy = policy;
+        Q_EMIT lockPolicyChanged();
+    }
+}
+
+BackendOutput::DpmsPolicy BackendOutput::dpmsPolicy() const
+{
+    return m_dpmsPolicy;
+}
+
+void BackendOutput::setDpmsPolicy(DpmsPolicy policy)
+{
+    if (m_dpmsPolicy != policy) {
+        m_dpmsPolicy = policy;
+        Q_EMIT dpmsPolicyChanged();
+    }
 }
 
 uint32_t BackendOutput::overscan() const

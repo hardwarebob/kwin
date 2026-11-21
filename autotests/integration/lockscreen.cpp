@@ -9,10 +9,15 @@
 #include "kwin_wayland_test.h"
 
 #include "compositor.h"
+#include "core/backendoutput.h"
 #include "core/output.h"
+#include "core/outputbackend.h"
+#include "core/outputconfiguration.h"
 #include "core/renderbackend.h"
 #include "effect/effecthandler.h"
 #include "pointer_input.h"
+#include "remotesessions.h"
+#include "scene/windowitem.h"
 #include "screenedge.h"
 #include "wayland/display.h"
 #include "wayland/keyboard.h"
@@ -69,6 +74,7 @@ private Q_SLOTS:
     void testKeyboardLockShortcut();
     void testKeyboardShortcutsDisabledWhenLocked();
     void testTouch();
+    void testModularUnlockedOutputAndRemoteSession();
 
 private:
     struct WindowHandle
@@ -824,6 +830,59 @@ void LockScreenTest::testTouch()
     Test::touchUp(1, timestamp++);
     QVERIFY(pointRemovedSpy.wait());
     QCOMPARE(pointRemovedSpy.count(), 1);
+}
+
+void LockScreenTest::testModularUnlockedOutputAndRemoteSession()
+{
+    Test::setOutputConfig({
+        QRect(0, 0, 1280, 1024),
+        QRect(1280, 0, 1280, 1024),
+    });
+    const auto outputs = kwinApp()->outputBackend()->outputs();
+    QCOMPARE(outputs.size(), 2);
+    BackendOutput *physOut = outputs[0];
+    BackendOutput *virtOut = outputs[1];
+
+    OutputConfiguration cfg;
+    cfg.changeSet(virtOut)->lockPolicy = BackendOutput::LockPolicy::Unlocked;
+    cfg.changeSet(virtOut)->dpmsPolicy = BackendOutput::DpmsPolicy::AlwaysOn;
+    QVERIFY(workspace()->applyOutputConfiguration(cfg).has_value());
+    QCOMPARE(virtOut->lockPolicy(), BackendOutput::LockPolicy::Unlocked);
+    QCOMPARE(virtOut->dpmsPolicy(), BackendOutput::DpmsPolicy::AlwaysOn);
+    QVERIFY(workspace()->hasUnlockedAwakeOutput());
+
+    auto [window, surface, shellSurface] = showWindow();
+    QVERIFY(window);
+    window->move(QPoint(1300, 100));
+    QVERIFY(window->isOnOutput(workspace()->outputs().at(1)));
+
+    LOCK;
+    QVERIFY(window->windowItem()->isVisible());
+    QVERIFY(!window->isSuspended());
+
+    workspace()->requestDpmsState(Workspace::DpmsState::Off);
+    QTRY_COMPARE(physOut->dpmsMode(), BackendOutput::DpmsMode::Off);
+    QCOMPARE(virtOut->dpmsMode(), BackendOutput::DpmsMode::On);
+    QVERIFY(window->windowItem()->isVisible());
+    QVERIFY(!window->isSuspended());
+
+    workspace()->requestDpmsState(Workspace::DpmsState::On);
+    QTRY_COMPARE(physOut->dpmsMode(), BackendOutput::DpmsMode::On);
+
+    RemoteSessionManager mgr;
+    QSignalSpy sessionsSpy(&mgr, &RemoteSessionManager::activeSessionsChanged);
+    QSignalSpy disconnectSpy(&mgr, &RemoteSessionManager::disconnectRequested);
+    const QString sid = mgr.registerSession(QStringLiteral("Hermes"), QStringLiteral("tablet"), virtOut->name());
+    QVERIFY(!sid.isEmpty());
+    QCOMPARE(sessionsSpy.count(), 1);
+    QCOMPARE(mgr.activeSessions().size(), 1);
+    mgr.requestDisconnect(sid);
+    QCOMPARE(disconnectSpy.count(), 1);
+    mgr.unregisterSession(sid);
+    QCOMPARE(mgr.activeSessions().size(), 0);
+
+    UNLOCK;
+    Test::setOutputConfig({QRect(0, 0, 1280, 1024)});
 }
 
 }
