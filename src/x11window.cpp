@@ -1248,6 +1248,24 @@ void X11Window::updateVisibility()
     }
     setSkipTaskbar(originalSkipTaskbar()); // Reset from 'hidden'
     const auto outputs = workspace()->outputs();
+    auto isUnlockedAwake = [](LogicalOutput *out) {
+        return out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+            && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+    };
+    bool onUnlockedAwakeOutput = std::ranges::any_of(outputs, [this, &isUnlockedAwake](LogicalOutput *out) {
+        return isOnOutput(out) && isUnlockedAwake(out);
+    });
+    if (waylandServer()->isScreenLocked() && !onUnlockedAwakeOutput && !isSpecialWindow() && workspace()->hasUnlockedAwakeOutput()) {
+        for (LogicalOutput *out : outputs) {
+            if (isUnlockedAwake(out) && moveResizeOutput() != out) {
+                sendToOutput(out);
+                onUnlockedAwakeOutput = std::ranges::any_of(outputs, [this, &isUnlockedAwake](LogicalOutput *o) {
+                    return isOnOutput(o) && isUnlockedAwake(o);
+                });
+                break;
+            }
+        }
+    }
     const bool onAwakeOutput = std::ranges::any_of(outputs, [this](LogicalOutput *out) {
         return isOnOutput(out) && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
     });
@@ -1257,11 +1275,6 @@ void X11Window::updateVisibility()
         return;
     }
     info->setState(NET::States(), NET::Hidden);
-    const bool onUnlockedAwakeOutput = std::ranges::any_of(outputs, [this](LogicalOutput *out) {
-        return isOnOutput(out)
-            && out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
-            && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
-    });
     if (!isOnCurrentDesktop() || (waylandServer()->isScreenLocked() && !onUnlockedAwakeOutput)) {
         internalKeep();
         return;
