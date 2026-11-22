@@ -3499,6 +3499,10 @@ Window *InputRedirection::findToplevel(const QPointF &pos)
         return nullptr;
     }
     const bool isScreenLocked = waylandServer() && waylandServer()->isScreenLocked();
+    LogicalOutput *posOutput = isScreenLocked ? Workspace::self()->outputAt(pos) : nullptr;
+    const bool posOnUnlockedAwakeOutput = posOutput
+        && posOutput->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+        && posOutput->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
     if (!isScreenLocked) {
         // if an effect overrides the cursor we don't have a window to focus
         if (effects && effects->isMouseInterception()) {
@@ -3524,7 +3528,11 @@ Window *InputRedirection::findToplevel(const QPointF &pos)
             continue;
         }
         if (isScreenLocked) {
-            if (!window->isLockScreen() && !window->isInputMethod() && !window->isLockScreenOverlay()) {
+            if (posOnUnlockedAwakeOutput) {
+                if (window->isLockScreen() || window->isLockScreenOverlay()) {
+                    continue;
+                }
+            } else if (!window->isLockScreen() && !window->isInputMethod() && !window->isLockScreenOverlay()) {
                 continue;
             }
         }

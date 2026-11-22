@@ -11,6 +11,8 @@
 #include "config-kwin.h"
 
 #include "a11ymanager.h"
+#include "core/backendoutput.h"
+#include "core/output.h"
 #include "input_event.h"
 #include "input_event_spy.h"
 #include "inputmethod.h"
@@ -212,6 +214,32 @@ void KeyboardInputRedirection::reconfigure()
 Window *KeyboardInputRedirection::pickFocus() const
 {
     if (waylandServer()->isScreenLocked()) {
+        auto isWindowOnUnlockedAwakeOutput = [](Window *w) {
+            if (!w || w->isDeleted() || !w->readyForPainting() || w->isLockScreen() || w->isLockScreenOverlay()) {
+                return false;
+            }
+            const auto outputs = Workspace::self()->outputs();
+            return std::ranges::any_of(outputs, [w](LogicalOutput *output) {
+                return w->isOnOutput(output)
+                    && output->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                    && output->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+            });
+        };
+        if (Workspace::self()->hasUnlockedAwakeOutput()) {
+            if (isWindowOnUnlockedAwakeOutput(Workspace::self()->activeWindow())) {
+                return Workspace::self()->activeWindow();
+            }
+            const QList<Window *> &stacking = Workspace::self()->stackingOrder();
+            if (!stacking.isEmpty()) {
+                auto it = stacking.end();
+                do {
+                    --it;
+                    if (isWindowOnUnlockedAwakeOutput(*it)) {
+                        return *it;
+                    }
+                } while (it != stacking.begin());
+            }
+        }
         const QList<Window *> &stacking = Workspace::self()->stackingOrder();
         if (!stacking.isEmpty()) {
             auto it = stacking.end();
