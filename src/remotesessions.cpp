@@ -103,6 +103,9 @@ bool RemoteSessionManager::setOutputPolicies(const QString &outputName, bool unl
     auto changeSet = cfg.changeSet(target);
     changeSet->lockPolicy = unlockedWhileLocked ? BackendOutput::LockPolicy::Unlocked : BackendOutput::LockPolicy::FollowSession;
     changeSet->dpmsPolicy = alwaysOnDpms ? BackendOutput::DpmsPolicy::AlwaysOn : BackendOutput::DpmsPolicy::FollowSession;
+    if (alwaysOnDpms) {
+        changeSet->dpmsMode = BackendOutput::DpmsMode::On;
+    }
 
     return workspace()->applyOutputConfiguration(cfg).has_value();
 }

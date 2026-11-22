@@ -56,6 +56,7 @@ WindowItem::WindowItem(Window *window, Item *parent)
     connect(workspace(), &Workspace::currentActivityChanged, this, &WindowItem::updateVisibility);
     connect(workspace(), &Workspace::currentDesktopChanged, this, &WindowItem::updateVisibility);
     connect(workspace(), &Workspace::dpmsStateChanged, this, &WindowItem::updateVisibility);
+    connect(workspace(), &Workspace::outputPoliciesChanged, this, &WindowItem::updateVisibility);
     updateVisibility();
 
     connect(window, &Window::opacityChanged, this, &WindowItem::updateOpacity);

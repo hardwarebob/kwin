@@ -551,6 +551,7 @@ Q_SIGNALS:
      */
     void workspaceInitialized();
     void geometryChanged();
+    void outputPoliciesChanged();
 
     // Signals required for the scripting interface
     void currentActivityChanged();
