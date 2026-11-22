@@ -11,6 +11,7 @@
 #include "input.h"
 
 #include "backends/fakeinput/fakeinputbackend.h"
+#include "core/backendoutput.h"
 #include "core/inputbackend.h"
 #include "core/inputdevice.h"
 #include "core/session.h"
@@ -299,12 +300,35 @@ public:
     }
     static bool allowThroughForUnlockedOutput(InputDevice *device)
     {
-        return device && device->inputScope() == InputDevice::InputScope::UnlockedOutputsOnly
-            && workspace()->hasUnlockedAwakeOutput();
+        if (!device || !workspace()->hasUnlockedAwakeOutput()) {
+            return false;
+        }
+        if (device->inputScope() == InputDevice::InputScope::UnlockedOutputsOnly) {
+            return true;
+        }
+        if (device->sysPath().startsWith(QLatin1String("/sys/devices/virtual/input/"))) {
+            return true;
+        }
+        if (!device->outputName().isEmpty()) {
+            if (LogicalOutput *out = workspace()->findOutput(device->outputName())) {
+                return out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                    && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+            }
+        }
+        return false;
+    }
+    static bool isPosOnUnlockedAwakeOutput(const QPointF &pos)
+    {
+        if (LogicalOutput *out = workspace()->outputAt(pos)) {
+            return out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+        }
+        return false;
     }
     bool pointerMotion(PointerMotionEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
+        m_lastPointerAllowedThrough = allowThroughForUnlockedOutput(event->device);
+        if (!waylandServer()->isScreenLocked() || m_lastPointerAllowedThrough) {
             return false;
         }
 
@@ -327,7 +351,8 @@ public:
     }
     bool pointerButton(PointerButtonEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
+        m_lastPointerAllowedThrough = allowThroughForUnlockedOutput(event->device);
+        if (!waylandServer()->isScreenLocked() || m_lastPointerAllowedThrough) {
             return false;
         }
 
@@ -351,7 +376,7 @@ public:
     }
     bool pointerFrame() override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || m_lastPointerAllowedThrough) {
             return false;
         }
         auto seat = waylandServer()->seat();
@@ -362,7 +387,8 @@ public:
     }
     bool pointerAxis(PointerAxisEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked() || allowThroughForUnlockedOutput(event->device)) {
+        m_lastPointerAllowedThrough = allowThroughForUnlockedOutput(event->device);
+        if (!waylandServer()->isScreenLocked() || m_lastPointerAllowedThrough) {
             return false;
         }
 
@@ -424,6 +450,10 @@ public:
         if (!waylandServer()->isScreenLocked()) {
             return false;
         }
+        if (isPosOnUnlockedAwakeOutput(event->pos)) {
+            m_unlockedTouchIds.insert(event->id);
+            return false;
+        }
 
         ScreenLocker::KSldApp::self()->userActivity();
 
@@ -437,7 +467,7 @@ public:
     }
     bool touchMotion(TouchMotionEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || m_unlockedTouchIds.contains(event->id)) {
             return false;
         }
 
@@ -450,7 +480,7 @@ public:
     }
     bool touchUp(TouchUpEvent *event) override
     {
-        if (!waylandServer()->isScreenLocked()) {
+        if (!waylandServer()->isScreenLocked() || m_unlockedTouchIds.remove(event->id)) {
             return false;
         }
 
@@ -537,6 +567,8 @@ private:
     {
         return surfaceAllowed(waylandServer()->seat()->focusedKeyboardSurface());
     }
+    mutable bool m_lastPointerAllowedThrough = false;
+    QSet<qint32> m_unlockedTouchIds;
 };
 #endif
 

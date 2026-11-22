@@ -11,6 +11,7 @@
 
 #include <QElapsedTimer>
 #include <QObject>
+#include <QSet>
 
 #include <kwin_export.h>
 
@@ -52,6 +53,7 @@ private:
     void notify();
     QElapsedTimer m_doubleTapTimer;
     QList<qint32> m_touchPoints;
+    QSet<qint32> m_unlockedTouchIds;
     std::unique_ptr<ProximitySensor> m_sensor;
 
     bool m_secondTap = false;

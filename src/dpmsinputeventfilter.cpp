@@ -9,6 +9,7 @@
 #include "dpmsinputeventfilter.h"
 #include "core/backendoutput.h"
 #include "core/inputdevice.h"
+#include "core/output.h"
 #include "core/outputbackend.h"
 #include "input_event.h"
 #include "main.h"
@@ -26,8 +27,31 @@ namespace KWin
 
 static bool isUnlockedOnlyDevice(InputDevice *device)
 {
-    return device && device->inputScope() == InputDevice::InputScope::UnlockedOutputsOnly
-        && workspace()->hasUnlockedAwakeOutput();
+    if (!device || !workspace()->hasUnlockedAwakeOutput()) {
+        return false;
+    }
+    if (device->inputScope() == InputDevice::InputScope::UnlockedOutputsOnly) {
+        return true;
+    }
+    if (device->sysPath().startsWith(QLatin1String("/sys/devices/virtual/input/"))) {
+        return true;
+    }
+    if (!device->outputName().isEmpty()) {
+        if (LogicalOutput *out = workspace()->findOutput(device->outputName())) {
+            return out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+        }
+    }
+    return false;
+}
+
+static bool isPosOnUnlockedAwakeOutput(const QPointF &pos)
+{
+    if (LogicalOutput *out = workspace()->outputAt(pos)) {
+        return out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+            && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+    }
+    return false;
 }
 
 DpmsInputEventFilter::DpmsInputEventFilter()
@@ -120,6 +144,10 @@ bool DpmsInputEventFilter::keyboardKey(KeyboardKeyEvent *event)
 
 bool DpmsInputEventFilter::touchDown(TouchDownEvent *event)
 {
+    if (isPosOnUnlockedAwakeOutput(event->pos)) {
+        m_unlockedTouchIds.insert(event->id);
+        return false;
+    }
     if (m_enableDoubleTap) {
         if (m_touchPoints.isEmpty()) {
             if (!m_doubleTapTimer.isValid()) {
@@ -145,6 +173,9 @@ bool DpmsInputEventFilter::touchDown(TouchDownEvent *event)
 
 bool DpmsInputEventFilter::touchUp(TouchUpEvent *event)
 {
+    if (m_unlockedTouchIds.remove(event->id)) {
+        return false;
+    }
     if (m_enableDoubleTap) {
         m_touchPoints.removeAll(event->id);
         if (m_touchPoints.isEmpty() && m_doubleTapTimer.isValid() && m_secondTap) {
@@ -163,22 +194,34 @@ bool DpmsInputEventFilter::touchUp(TouchUpEvent *event)
 
 bool DpmsInputEventFilter::touchMotion(TouchMotionEvent *event)
 {
+    if (m_unlockedTouchIds.contains(event->id)) {
+        return false;
+    }
     // ignore the event
     return true;
 }
 
 bool DpmsInputEventFilter::tabletToolProximityEvent(TabletToolProximityEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     return true;
 }
 
 bool DpmsInputEventFilter::tabletToolAxisEvent(TabletToolAxisEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     return true;
 }
 
 bool DpmsInputEventFilter::tabletToolTipEvent(TabletToolTipEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     if (event->type == TabletToolTipEvent::Press) {
         // Only wake when the tool is actually pressed down not just hovered over the tablet
         notify();
@@ -188,6 +231,9 @@ bool DpmsInputEventFilter::tabletToolTipEvent(TabletToolTipEvent *event)
 
 bool DpmsInputEventFilter::tabletToolButtonEvent(TabletToolButtonEvent *event)
 {
+    if (isUnlockedOnlyDevice(event->device)) {
+        return false;
+    }
     if (event->pressed) {
         notify();
     }

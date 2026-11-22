@@ -9,9 +9,15 @@
 #include "remotesessions.h"
 
 #include "core/backendoutput.h"
+#include "core/output.h"
 #include "core/outputbackend.h"
 #include "core/outputconfiguration.h"
+#include "input.h"
+#include "keyboard_input.h"
 #include "main.h"
+#include "pointer_input.h"
+#include "wayland_server.h"
+#include "window.h"
 #include "workspace.h"
 
 #include <QDBusConnection>
@@ -107,7 +113,25 @@ bool RemoteSessionManager::setOutputPolicies(const QString &outputName, bool unl
         changeSet->dpmsMode = BackendOutput::DpmsMode::On;
     }
 
-    return workspace()->applyOutputConfiguration(cfg).has_value();
+    const bool applied = workspace()->applyOutputConfiguration(cfg).has_value();
+    if (applied && unlockedWhileLocked && waylandServer()->isScreenLocked()) {
+        if (LogicalOutput *logicalOutput = workspace()->findOutput(target)) {
+            if (!logicalOutput->geometry().contains(input()->pointer()->pos().toPoint())) {
+                input()->pointer()->warp(logicalOutput->geometry().center());
+            }
+            const auto &stack = workspace()->stackingOrder();
+            for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
+                Window *w = *it;
+                if (w && w->isClient() && !w->isLockScreen() && !w->isLockScreenOverlay()
+                    && w->isOnOutput(logicalOutput) && w->readyForPainting()) {
+                    workspace()->activateWindow(w);
+                    break;
+                }
+            }
+            input()->keyboard()->update();
+        }
+    }
+    return applied;
 }
 
 } // namespace KWin
