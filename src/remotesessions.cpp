@@ -118,6 +118,7 @@ bool RemoteSessionManager::setOutputPolicies(const QString &outputName, bool unl
     const bool applied = workspace()->applyOutputConfiguration(cfg).has_value();
     if (applied && unlockedWhileLocked && waylandServer()->isScreenLocked()) {
         if (LogicalOutput *logicalOutput = workspace()->findOutput(target)) {
+            workspace()->setActiveOutput(logicalOutput);
             if (!logicalOutput->geometry().contains(input()->pointer()->pos().toPoint())) {
                 input()->pointer()->warp(logicalOutput->geometry().center());
             }

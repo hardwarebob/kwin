@@ -139,6 +139,7 @@ X11Window::X11Window()
     connect(options, &Options::condensedTitleChanged, this, &X11Window::updateCaption);
     connect(workspace(), &Workspace::dpmsStateChanged, this, &X11Window::updateVisibility);
     connect(waylandServer(), &WaylandServer::lockStateChanged, this, &X11Window::updateVisibility);
+    connect(workspace(), &Workspace::outputPoliciesChanged, this, &X11Window::updateVisibility);
 
     // SELI TODO: Initialize xsizehints??
 }
@@ -849,6 +850,24 @@ bool X11Window::manage(xcb_window_t w, bool isMapped)
 
         if (isOnCurrentDesktop() && !isMapped && !allow && (!session || session->stackingOrder < 0)) {
             workspace()->restackWindowUnderActive(this);
+        }
+
+        if (waylandServer()->isScreenLocked() && workspace()->hasUnlockedAwakeOutput() && !isSpecialWindow()) {
+            const auto outputs = workspace()->outputs();
+            const bool onUnlockedAwakeOutput = std::ranges::any_of(outputs, [this](LogicalOutput *out) {
+                return isOnOutput(out)
+                    && out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                    && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+            });
+            if (!onUnlockedAwakeOutput) {
+                for (LogicalOutput *out : outputs) {
+                    if (out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                        && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On) {
+                        sendToOutput(out);
+                        break;
+                    }
+                }
+            }
         }
 
         updateVisibility();
