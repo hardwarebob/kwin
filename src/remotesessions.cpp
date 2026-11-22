@@ -111,6 +111,8 @@ bool RemoteSessionManager::setOutputPolicies(const QString &outputName, bool unl
     changeSet->dpmsPolicy = alwaysOnDpms ? BackendOutput::DpmsPolicy::AlwaysOn : BackendOutput::DpmsPolicy::FollowSession;
     if (alwaysOnDpms) {
         changeSet->dpmsMode = BackendOutput::DpmsMode::On;
+    } else if (workspace()->dpmsState() != Workspace::DpmsState::On) {
+        changeSet->dpmsMode = BackendOutput::DpmsMode::Off;
     }
 
     const bool applied = workspace()->applyOutputConfiguration(cfg).has_value();
