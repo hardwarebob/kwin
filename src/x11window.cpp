@@ -140,6 +140,7 @@ X11Window::X11Window()
     connect(workspace(), &Workspace::dpmsStateChanged, this, &X11Window::updateVisibility);
     connect(waylandServer(), &WaylandServer::lockStateChanged, this, &X11Window::updateVisibility);
     connect(workspace(), &Workspace::outputPoliciesChanged, this, &X11Window::updateVisibility);
+    connect(this, &Window::outputChanged, this, &X11Window::updateVisibility);
 
     // SELI TODO: Initialize xsizehints??
 }
@@ -3452,7 +3453,29 @@ void X11Window::moveResizeInternal(const RectF &rect, MoveResizeMode mode)
         return;
     }
 
-    const RectF frameGeometry = Xcb::fromXNative(Xcb::toXNative(rect));
+    RectF effectiveRect = rect;
+    if (waylandServer() && waylandServer()->isScreenLocked() && workspace()->hasUnlockedAwakeOutput() && !isSpecialWindow()) {
+        LogicalOutput *targetOut = workspace()->outputAt(effectiveRect.center());
+        const bool onUnlocked = targetOut
+            && targetOut->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+            && targetOut->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On;
+        if (!onUnlocked) {
+            for (LogicalOutput *out : workspace()->outputs()) {
+                if (out->backendOutput()->lockPolicy() == BackendOutput::LockPolicy::Unlocked
+                    && out->backendOutput()->dpmsMode() == BackendOutput::DpmsMode::On) {
+                    const RectF area = out->geometry();
+                    if (isFullScreen() || effectiveRect.width() > area.width() || effectiveRect.height() > area.height()) {
+                        effectiveRect = area;
+                    } else {
+                        effectiveRect.moveCenter(area.center());
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    const RectF frameGeometry = Xcb::fromXNative(Xcb::toXNative(effectiveRect));
     const RectF clientGeometry = nextFrameRectToClientRect(frameGeometry);
     const RectF bufferGeometry = nextFrameRectToBufferRect(frameGeometry);
     const qreal bufferScale = kwinApp()->xwaylandScale();
