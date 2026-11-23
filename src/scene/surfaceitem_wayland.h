@@ -53,6 +53,7 @@ private Q_SLOTS:
     void handleReleasePointChanged();
     void handleAlphaMultiplierChanged();
     void handleCommitTiming();
+    void handleVisibilityChanged();
 
 private:
     SurfaceItemWayland *getOrCreateSubSurfaceItem(SubSurfaceInterface *s);

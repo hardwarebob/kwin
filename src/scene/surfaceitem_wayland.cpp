@@ -55,6 +55,8 @@ SurfaceItemWayland::SurfaceItemWayland(SurfaceInterface *surface, Item *parent)
             this, &SurfaceItemWayland::handleSurfaceMappedChanged);
     connect(surface, &SurfaceInterface::unmapped,
             this, &SurfaceItemWayland::handleSurfaceMappedChanged);
+    connect(this, &Item::visibleChanged,
+            this, &SurfaceItemWayland::handleVisibilityChanged);
     setVisible(surface->isMapped());
 
     SubSurfaceInterface *subsurface = surface->subSurface();
@@ -116,8 +118,21 @@ void SurfaceItemWayland::handleBufferTransformChanged()
 
 void SurfaceItemWayland::handleSurfaceCommitted()
 {
+    if (!isVisible()) {
+        m_surface->clearFifoBarrier(std::nullopt);
+        m_surface->tryApplyState(std::chrono::steady_clock::now().time_since_epoch());
+        return;
+    }
     if (m_surface->hasFrameCallbacks() || m_surface->hasFifoBarrier() || m_surface->hasPresentationFeedback()) {
         scheduleFrame(m_surface->requestedTimingOfNextCommit());
+    }
+}
+
+void SurfaceItemWayland::handleVisibilityChanged()
+{
+    if (!isVisible() && m_surface) {
+        m_surface->clearFifoBarrier(std::nullopt);
+        m_surface->tryApplyState(std::chrono::steady_clock::now().time_since_epoch());
     }
 }
 
