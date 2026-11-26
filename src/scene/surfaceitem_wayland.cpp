@@ -119,8 +119,7 @@ void SurfaceItemWayland::handleBufferTransformChanged()
 void SurfaceItemWayland::handleSurfaceCommitted()
 {
     if (!isVisible()) {
-        m_surface->clearFifoBarrier(std::nullopt);
-        m_surface->tryApplyState(std::chrono::steady_clock::now().time_since_epoch());
+        scheduleHiddenFlush();
         return;
     }
     if (m_surface->hasFrameCallbacks() || m_surface->hasFifoBarrier() || m_surface->hasPresentationFeedback()) {
@@ -131,9 +130,24 @@ void SurfaceItemWayland::handleSurfaceCommitted()
 void SurfaceItemWayland::handleVisibilityChanged()
 {
     if (!isVisible() && m_surface) {
-        m_surface->clearFifoBarrier(std::nullopt);
-        m_surface->tryApplyState(std::chrono::steady_clock::now().time_since_epoch());
+        scheduleHiddenFlush();
     }
+}
+
+void SurfaceItemWayland::scheduleHiddenFlush()
+{
+    if (m_hiddenFlushScheduled) {
+        return;
+    }
+    m_hiddenFlushScheduled = true;
+    // Defer outside SurfaceInterface::committed() to avoid re-entrant Transaction::apply() recursion.
+    QMetaObject::invokeMethod(this, [this]() {
+        m_hiddenFlushScheduled = false;
+        if (!isVisible() && m_surface) {
+            m_surface->clearFifoBarrier(std::nullopt);
+            m_surface->tryApplyState(std::chrono::steady_clock::now().time_since_epoch());
+        }
+    }, Qt::QueuedConnection);
 }
 
 SurfaceItemWayland *SurfaceItemWayland::getOrCreateSubSurfaceItem(SubSurfaceInterface *child)

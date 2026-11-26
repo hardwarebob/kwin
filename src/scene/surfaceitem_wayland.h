@@ -60,8 +60,10 @@ private:
     void handlePrepareFrame(SceneView *view, std::chrono::nanoseconds timestamp) override;
     void handleFramePainted(SceneView *view, LogicalOutput *output, OutputFrame *frame, std::chrono::milliseconds timestamp) override;
     SceneView *primaryView() const;
+    void scheduleHiddenFlush();
 
     QPointer<SurfaceInterface> m_surface;
+    bool m_hiddenFlushScheduled = false;
     struct ScanoutFeedback
     {
         DrmDevice *device = nullptr;
